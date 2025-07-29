@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 DETECTOR_PRIORITY = ["opencv", "retinaface", "mediapipe", "mtcnn"]
+CUSTOM_THRESHOLD = 0.3  # You can adjust this value as needed
 
 @app.get("/")
 async def root():
@@ -23,11 +24,9 @@ async def read_image_async(file: UploadFile) -> np.ndarray:
         if not contents:
             raise ValueError("Empty file uploaded.")
 
-        # First pass check for corruption
         image = Image.open(io.BytesIO(contents))
         image.verify()
 
-        # Reload after verification
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         return np.array(image)
     except UnidentifiedImageError:
@@ -87,11 +86,16 @@ async def verify_faces(file1: UploadFile = File(...), file2: UploadFile = File(.
                 detector_backend=backend,
                 enforce_detection=True
             )
-            logger.info(f"Verification successful using backend: {backend}")
+            distance = result.get("distance")
+            verified = distance < CUSTOM_THRESHOLD  # Use your custom logic
+
+            logger.info(f"Verification attempted using backend: {backend}")
+
             return {
-                "verified": result.get("verified"),
-                "distance": result.get("distance"),
-                "threshold": result.get("threshold"),
+                "verified": verified,
+                "distance": distance,
+                "threshold": CUSTOM_THRESHOLD,
+                #"actual_threshold": result.get("threshold"),
                 "model": result.get("model"),
                 "similarity_metric": result.get("similarity_metric"),
                 "detector_backend": backend
